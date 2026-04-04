@@ -2,7 +2,6 @@ package com.sandeep.simplebackend.finance.service;
 
 import com.sandeep.simplebackend.finance.dto.CreateUserRequest;
 import com.sandeep.simplebackend.finance.dto.UserDTO;
-
 import com.sandeep.simplebackend.finance.entity.Role;
 import com.sandeep.simplebackend.finance.entity.User;
 import com.sandeep.simplebackend.finance.repository.RoleRepository;
@@ -19,7 +18,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepo;
     private final RoleRepository roleRepo;
-    private final JwtUtil jwtUtil; // ✅ NEW
+    private final JwtUtil jwtUtil;
 
     // ✅ ROLE CHECK
     private void checkAdmin(User user) {
@@ -28,11 +27,27 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    // ✅ Get logged-in user from token
+    // ✅ TOKEN → USER
     private User getUserFromToken(String token) {
         String email = jwtUtil.extractEmail(token);
         return userRepo.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    // ✅ SIMPLE VALIDATION
+    private void validateRequest(CreateUserRequest request) {
+
+        if (request.getUsername() == null || request.getUsername().isBlank()) {
+            throw new RuntimeException("Username is required");
+        }
+
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new RuntimeException("Email is required");
+        }
+
+        if (request.getPassword() == null || request.getPassword().length() < 3) {
+            throw new RuntimeException("Password must be at least 3 characters");
+        }
     }
 
     @Override
@@ -40,6 +55,13 @@ public class UserServiceImpl implements UserService {
 
         User loggedUser = getUserFromToken(token);
         checkAdmin(loggedUser);
+
+        validateRequest(request);
+
+
+        if (userRepo.findByEmail(request.getEmail()).isPresent()) {
+            throw new RuntimeException("Email already exists");
+        }
 
         Role role = roleRepo.findById(request.getRoleId())
                 .orElseThrow(() -> new RuntimeException("Role not found"));
@@ -59,7 +81,6 @@ public class UserServiceImpl implements UserService {
 
         User loggedUser = getUserFromToken(token);
 
-        // 👉 allow ADMIN + ANALYST
         String role = loggedUser.getRole().getName();
         if (!role.equalsIgnoreCase("ADMIN") && !role.equalsIgnoreCase("ANALYST")) {
             throw new RuntimeException("Access denied");
@@ -92,6 +113,8 @@ public class UserServiceImpl implements UserService {
         User loggedUser = getUserFromToken(token);
         checkAdmin(loggedUser);
 
+        validateRequest(request);
+
         User user = userRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -106,6 +129,10 @@ public class UserServiceImpl implements UserService {
 
         User loggedUser = getUserFromToken(token);
         checkAdmin(loggedUser);
+
+        if (!userRepo.existsById(id)) {
+            throw new RuntimeException("User not found");
+        }
 
         userRepo.deleteById(id);
     }

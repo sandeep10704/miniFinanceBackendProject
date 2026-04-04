@@ -3,6 +3,7 @@ package com.sandeep.simplebackend.finance.controller;
 import com.sandeep.simplebackend.finance.dto.CreateUserRequest;
 import com.sandeep.simplebackend.finance.dto.UserDTO;
 import com.sandeep.simplebackend.finance.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,7 +27,7 @@ public class UserController {
     public ResponseEntity<UserDTO> createUser(
             @RequestHeader("Authorization") String authHeader,
             @RequestBody CreateUserRequest request) {
-
+            @Valid
         String token = extractToken(authHeader);
         return ResponseEntity.ok(userService.createUser(token, request));
     }
@@ -56,7 +57,7 @@ public class UserController {
             @RequestHeader("Authorization") String authHeader,
             @PathVariable Long id,
             @RequestBody CreateUserRequest request) {
-
+            @Valid
         String token = extractToken(authHeader);
         return ResponseEntity.ok(userService.updateUser(token, id, request));
     }

@@ -2,7 +2,6 @@ package com.sandeep.simplebackend.finance.service;
 
 import com.sandeep.simplebackend.finance.dto.CreateRecordRequest;
 import com.sandeep.simplebackend.finance.dto.FinancialRecordDTO;
-
 import com.sandeep.simplebackend.finance.entity.FinancialRecord;
 import com.sandeep.simplebackend.finance.entity.User;
 import com.sandeep.simplebackend.finance.repository.FinancialRecordRepository;
@@ -19,7 +18,7 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
 
     private final FinancialRecordRepository repo;
     private final UserRepository userRepo;
-    private final JwtUtil jwtUtil; // ✅ NEW
+    private final JwtUtil jwtUtil;
 
     // ✅ ROLE CHECKS
     private void checkAdmin(User user) {
@@ -35,18 +34,42 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
         }
     }
 
-    // ✅ Extract user from token
+    // ✅ TOKEN → USER
     private User getUserFromToken(String token) {
         String email = jwtUtil.extractEmail(token);
         return userRepo.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
+    // ✅ VALIDATION (simple but enough)
+    private void validateRequest(CreateRecordRequest request) {
+
+        if (request.getAmount() == null || request.getAmount() <= 0) {
+            throw new RuntimeException("Amount must be greater than 0");
+        }
+
+        if (request.getType() == null ||
+                (!request.getType().equalsIgnoreCase("INCOME") &&
+                        !request.getType().equalsIgnoreCase("EXPENSE"))) {
+            throw new RuntimeException("Type must be INCOME or EXPENSE");
+        }
+
+        if (request.getCategory() == null || request.getCategory().isBlank()) {
+            throw new RuntimeException("Category is required");
+        }
+
+        if (request.getDate() == null) {
+            throw new RuntimeException("Date is required");
+        }
+    }
+
     @Override
     public FinancialRecordDTO create(String token, CreateRecordRequest request) {
 
         User user = getUserFromToken(token);
-        checkAdmin(user); // 🔥 ADMIN only
+        checkAdmin(user);
+
+        validateRequest(request);
 
         FinancialRecord r = new FinancialRecord();
         r.setAmount(request.getAmount());
@@ -63,7 +86,7 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
     public List<FinancialRecordDTO> getAll(String token) {
 
         User user = getUserFromToken(token);
-        checkAnalystOrAdmin(user); // 🔥 ANALYST or ADMIN
+        checkAnalystOrAdmin(user);
 
         return repo.findAll().stream()
                 .filter(r -> !Boolean.TRUE.equals(r.getIsDeleted()))
@@ -80,6 +103,10 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
         FinancialRecord r = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Record not found"));
 
+        if (Boolean.TRUE.equals(r.getIsDeleted())) {
+            throw new RuntimeException("Record already deleted");
+        }
+
         return mapToDTO(r);
     }
 
@@ -89,8 +116,14 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
         User user = getUserFromToken(token);
         checkAdmin(user);
 
+        validateRequest(request);
+
         FinancialRecord r = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Record not found"));
+
+        if (Boolean.TRUE.equals(r.getIsDeleted())) {
+            throw new RuntimeException("Cannot update deleted record");
+        }
 
         r.setAmount(request.getAmount());
         r.setType(request.getType());
@@ -109,6 +142,10 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
 
         FinancialRecord r = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Record not found"));
+
+        if (Boolean.TRUE.equals(r.getIsDeleted())) {
+            throw new RuntimeException("Record already deleted");
+        }
 
         r.setIsDeleted(true);
         repo.save(r);
