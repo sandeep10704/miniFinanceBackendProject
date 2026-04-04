@@ -5,6 +5,8 @@ import com.sandeep.simplebackend.finance.dto.FinancialRecordDTO;
 import com.sandeep.simplebackend.finance.service.FinancialRecordService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,11 +36,13 @@ public class FinancialRecordController {
 
 
     @GetMapping
-    public ResponseEntity<List<FinancialRecordDTO>> getAll(
-            @RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<Page<FinancialRecordDTO>> getAll(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
 
         String token = extractToken(authHeader);
-        return ResponseEntity.ok(recordService.getAll(token));
+        return ResponseEntity.ok(recordService.getAll(token, page, size));
     }
 
 

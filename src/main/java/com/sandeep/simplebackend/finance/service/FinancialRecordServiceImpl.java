@@ -8,6 +8,10 @@ import com.sandeep.simplebackend.finance.repository.FinancialRecordRepository;
 import com.sandeep.simplebackend.finance.repository.UserRepository;
 import com.sandeep.simplebackend.finance.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -174,5 +178,15 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
         dto.setDescription(r.getDescription());
         dto.setDate(r.getDate());
         return dto;
+    }
+    @Override
+    public Page<FinancialRecordDTO> getAll(String token, int page, int size) {
+
+        User user = getUserFromToken(token);
+        checkAnalystOrAdmin(user);
+
+        Page<FinancialRecord> records = repo.findAll(PageRequest.of(page, size));
+
+        return records.map(this::mapToDTO);
     }
 }
