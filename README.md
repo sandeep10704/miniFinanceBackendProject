@@ -327,30 +327,38 @@ The server starts at: **`http://localhost:8080`**
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
 | `POST` | `/api/records` | ADMIN, ANALYST | Create a new financial record |
-| `GET` | `/api/records` | ADMIN, ANALYST, VIEWER | Get all records (paginated, filterable) |
+| `GET` | `/api/records` | ADMIN, ANALYST, VIEWER | Get all records (paginated) |
 | `GET` | `/api/records/{id}` | ADMIN, ANALYST, VIEWER | Get a single record by ID |
 | `PUT` | `/api/records/{id}` | ADMIN, ANALYST | Update a record |
 | `DELETE` | `/api/records/{id}` | ADMIN | Soft-delete a record |
+| `GET` | `/api/records/filter` | ADMIN, ANALYST, VIEWER | Filter records by type & category |
 
-#### Query Parameters for `GET /api/records`
+#### Pagination Parameters for `GET /api/records`
 
-```
-?type=INCOME             # Filter by type (INCOME or EXPENSE)
-?category=Food           # Filter by category
-?startDate=2025-01-01    # Filter from date
-?endDate=2025-12-31      # Filter to date
-?page=0                  # Page number (0-indexed)
-?size=10                 # Records per page
-```
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `page` | `integer` | `0` | Page number (0-indexed) |
+| `size` | `integer` | `20` | Records per page |
+| `sort` | `string` | — | Sort field and direction (e.g. `date,desc`) |
+
+### 📁 Financial Records — Filter
+
+| Param | Type | Description |
+|---|---|---|
+| `type` | `string` | Filter by `INCOME` or `EXPENSE` |
+| `category` | `string` | Filter by category name |
 
 ### 📊 Dashboard (Public, Rate-Limited)
+
+> 🌐 These endpoints are **publicly accessible** — no JWT token required.
+> 🛡️ Protected by **IP-based rate limiting** via Bucket4j.
 
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
 | `GET` | `/api/dashboard/summary` | Public | Total income, total expense, net balance |
-| `GET` | `/api/dashboard/category-totals` | Public | Totals grouped by category |
-| `GET` | `/api/dashboard/monthly-trends` | Public | Monthly income vs expense breakdown |
-| `GET` | `/api/dashboard/recent-records` | Public | Last N financial records |
+| `GET` | `/api/dashboard/category` | Public | Totals grouped by category |
+| `GET` | `/api/dashboard/monthly` | Public | Monthly income vs expense breakdown |
+| `GET` | `/api/dashboard/recent` | Public | Recent financial records |
 
 ---
 
@@ -370,7 +378,9 @@ The server starts at: **`http://localhost:8080`**
 
 ## 📬 Example Requests & Responses
 
-### Login
+### 🔐 Login
+
+> **Swagger:** `auth-controller` → `POST /api/auth/login`
 
 **Request:**
 ```http
@@ -378,23 +388,61 @@ POST /api/auth/login
 Content-Type: application/json
 
 {
-  "username": "admin",
+  "email": "admin@gmail.com",
   "password": "123"
 }
 ```
 
-**Response:**
+**Response `200 OK`:**
+```json
+"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBnbWFpbC5jb20iLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3MDk..."
+```
+
+> ⚠️ The login field is **`email`** (not `username`). This matches the `LoginRequest` schema as shown in Swagger.
+
+---
+
+### 👤 Get User by ID
+
+> **Swagger:** `user-controller` → `GET /api/users/{id}`
+
+**Parameters:**
+
+| Name | Location | Type | Required | Description |
+|---|---|---|---|---|
+| `Authorization` | header | `string` | ✅ Yes | `Bearer <jwt_token>` |
+| `id` | path | `integer($int64)` | ✅ Yes | User's numeric ID |
+
+**Request:**
+```http
+GET /api/users/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+```
+
+**Response `200 OK` — `UserDTO`:**
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsImlhdCI6..."
+  "id": 1,
+  "username": "admin",
+  "email": "admin@gmail.com",
+  "role": "ADMIN",
+  "status": "ACTIVE"
 }
 ```
 
 ---
 
-### Create a Financial Record
+### 📝 Create a Financial Record
 
-**Request:**
+> **Swagger:** `financial-record-controller` → `POST /api/records`
+
+**Parameters:**
+
+| Name | Location | Type | Required | Description |
+|---|---|---|---|---|
+| `Authorization` | header | `string` | ✅ Yes | `Bearer <jwt_token>` |
+
+**Request Body — `CreateRecordRequest`:**
 ```http
 POST /api/records
 Authorization: Bearer <your_jwt_token>
@@ -409,7 +457,7 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
+**Response `200 OK` — `FinancialRecordDTO`:**
 ```json
 {
   "id": 1,
@@ -417,42 +465,47 @@ Content-Type: application/json
   "type": "INCOME",
   "category": "Salary",
   "description": "Monthly salary",
-  "date": "2025-04-01",
-  "userId": 1,
-  "createdAt": "2025-04-01T10:30:00"
+  "date": "2025-04-01"
 }
 ```
 
 ---
 
-### Dashboard Summary
+### 📊 Dashboard Summary
+
+> **Swagger:** `dashboard-controller` → `GET /api/dashboard/summary`  
+> 🌐 No authentication required · 🛡️ Rate limited by IP
 
 **Request:**
 ```http
 GET /api/dashboard/summary
 ```
 
-**Response:**
+**Response `200 OK`:**
 ```json
 {
-  "totalIncome": 15000.00,
-  "totalExpense": 8500.00,
-  "netBalance": 6500.00,
-  "recordCount": 42
+  "additionalProp1": "string",
+  "additionalProp2": "string",
+  "additionalProp3": "string"
 }
 ```
 
+> The dashboard returns a dynamic `Map<String, Object>` — keys depend on implementation (e.g., `totalIncome`, `totalExpense`, `netBalance`).
+
 ---
 
-### Paginated Records with Filter
+### 📋 Paginated Records
+
+> **Swagger:** `financial-record-controller` → `GET /api/records`  
+> Returns a `PageFinancialRecordDTO` (Spring Page wrapper)
 
 **Request:**
 ```http
-GET /api/records?type=EXPENSE&category=Food&page=0&size=5
+GET /api/records?page=0&size=5&sort=date,desc
 Authorization: Bearer <your_jwt_token>
 ```
 
-**Response:**
+**Response `200 OK` — `PageFinancialRecordDTO`:**
 ```json
 {
   "content": [
@@ -467,13 +520,42 @@ Authorization: Bearer <your_jwt_token>
   ],
   "totalElements": 18,
   "totalPages": 4,
-  "currentPage": 0
+  "number": 0,
+  "size": 5,
+  "first": true,
+  "last": false
 }
 ```
 
 ---
 
-### Validation Error Response
+### 🔍 Filter Records
+
+> **Swagger:** `financial-record-controller` → `GET /api/records/filter`
+
+**Request:**
+```http
+GET /api/records/filter?type=EXPENSE&category=Food
+Authorization: Bearer <your_jwt_token>
+```
+
+**Response `200 OK` — `List<FinancialRecordDTO>`:**
+```json
+[
+  {
+    "id": 7,
+    "amount": 250.00,
+    "type": "EXPENSE",
+    "category": "Food",
+    "description": "Grocery shopping",
+    "date": "2025-03-28"
+  }
+]
+```
+
+---
+
+### ❌ Validation Error Response
 
 ```json
 {
@@ -556,23 +638,213 @@ All exceptions are handled centrally by `GlobalExceptionHandler.java` using `@Co
 
 ---
 
-## 📖 Swagger Documentation
+## 📖 Swagger API Documentation
 
-Interactive API documentation is available via Swagger UI after starting the application:
+This project uses **SpringDoc OpenAPI 3** to auto-generate interactive API documentation. Once the application is running, visit:
 
 ```
 http://localhost:8080/swagger-ui/index.html
 ```
 
-### Using JWT in Swagger UI
+### What Swagger UI Provides
 
-1. Start the application and open Swagger UI
-2. Click the **Authorize 🔒** button (top right)
-3. Login via `POST /api/auth/login` to get your token
-4. Enter: `Bearer <your_token>` in the authorization dialog
-5. Click **Authorize** — all subsequent requests will include the JWT
+| Feature | Description |
+|---|---|
+| 📋 All Endpoints | Every API route is listed with method, path, and description |
+| 📨 Request Schemas | Shows required fields, types, and validation constraints |
+| 📩 Response Schemas | Documents all possible HTTP response codes and body shapes |
+| 🔐 JWT Authorization | Built-in Authorize button to attach Bearer tokens to requests |
+| ▶️ Try It Out | Execute real API calls directly from the browser |
+| 📁 Grouped by Tag | Endpoints are grouped by controller (Auth, Users, Records, Dashboard) |
 
-> The Swagger configuration (`SwaggerConfig.java`) includes a pre-configured `SecurityScheme` for Bearer token support.
+---
+
+### 🔐 How to Authenticate in Swagger UI (Step-by-Step)
+
+**Step 1 — Login via the API**
+
+In Swagger UI, expand `POST /api/auth/login` and click **Try it out**.
+Fill in the request body and hit **Execute**:
+
+```json
+{
+  "username": "admin",
+  "password": "123"
+}
+```
+
+Copy the JWT token from the response:
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIs..."
+}
+```
+
+**Step 2 — Authorize the Swagger Session**
+
+Click the 🔒 **Authorize** button at the top-right of the Swagger UI page.
+In the dialog box, enter the token in this exact format:
+
+```
+Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIs...
+```
+
+Click **Authorize**, then **Close**.
+
+**Step 3 — Use Protected Endpoints**
+
+All subsequent requests from Swagger UI will now automatically include the `Authorization: Bearer <token>` header. You can now test protected routes like:
+- `GET /api/records`
+- `POST /api/records`
+- `DELETE /api/records/{id}`
+
+---
+
+### 🛠️ How Swagger is Configured (`SwaggerConfig.java`)
+
+The `SwaggerConfig.java` class registers a `SecurityScheme` globally across all API operations so the JWT Authorize button appears in Swagger UI:
+
+```java
+@Configuration
+public class SwaggerConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+            .info(new Info()
+                .title("Finance Management API")
+                .version("1.0")
+                .description("Backend REST API for managing financial records"))
+            .addSecurityItem(new SecurityRequirement().addList("Bearer Auth"))
+            .components(new Components()
+                .addSecuritySchemes("Bearer Auth",
+                    new SecurityScheme()
+                        .name("Bearer Auth")
+                        .type(SecurityScheme.Type.HTTP)
+                        .scheme("bearer")
+                        .bearerFormat("JWT")));
+    }
+}
+```
+
+> 📌 This means **every endpoint** in Swagger UI will show the 🔒 lock icon and respect the JWT token you authorize with. You do **not** need to manually set the header for each request.
+
+---
+
+### 📂 Swagger UI Endpoint Groups
+
+> These groups match exactly what you see in Swagger UI at `http://localhost:8080/swagger-ui/index.html`
+
+```
+📁 user-controller
+   ├── GET    /api/users/{id}           → Get user by ID
+   ├── PUT    /api/users/{id}           → Update user
+   ├── DELETE /api/users/{id}           → Delete user
+   ├── GET    /api/users                → List all users
+   └── POST   /api/users               → Create new user
+
+📁 financial-record-controller
+   ├── GET    /api/records/{id}         → Get record by ID
+   ├── PUT    /api/records/{id}         → Update record
+   ├── DELETE /api/records/{id}         → Soft delete record
+   ├── GET    /api/records              → List all records (paginated)
+   ├── POST   /api/records              → Create new record
+   └── GET    /api/records/filter       → Filter by type & category
+
+📁 auth-controller
+   └── POST   /api/auth/login           → Authenticate, get JWT token
+
+📁 dashboard-controller  (🌐 Public, 🛡️ Rate Limited)
+   ├── GET    /api/dashboard/summary    → Financial summary
+   ├── GET    /api/dashboard/recent     → Recent records
+   ├── GET    /api/dashboard/monthly    → Monthly trends
+   └── GET    /api/dashboard/category   → Category-wise totals
+```
+
+---
+
+### 🗂️ Swagger Schemas Reference
+
+Swagger UI exposes the following **DTO schemas** under the `Schemas` section:
+
+#### `LoginRequest`
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
+
+#### `CreateUserRequest`
+```json
+{
+  "username": "string",
+  "email": "string",
+  "password": "string",
+  "roleId": 0
+}
+```
+
+#### `UserDTO`
+```json
+{
+  "id": 0,
+  "username": "string",
+  "email": "string",
+  "role": "string",
+  "status": "string"
+}
+```
+
+#### `CreateRecordRequest`
+```json
+{
+  "amount": 0.0,
+  "type": "string",
+  "category": "string",
+  "description": "string",
+  "date": "string"
+}
+```
+
+#### `FinancialRecordDTO`
+```json
+{
+  "id": 0,
+  "amount": 0.0,
+  "type": "string",
+  "category": "string",
+  "description": "string",
+  "date": "string"
+}
+```
+
+#### `PageFinancialRecordDTO` _(Paginated response)_
+```json
+{
+  "content": [ /* FinancialRecordDTO[] */ ],
+  "totalPages": 0,
+  "totalElements": 0,
+  "number": 0,
+  "size": 0,
+  "first": true,
+  "last": false,
+  "empty": false
+}
+```
+
+#### `PageableObject` _(Embedded in page responses)_
+```json
+{
+  "pageNumber": 0,
+  "pageSize": 20,
+  "sort": { /* SortObject */ },
+  "offset": 0,
+  "paged": true,
+  "unpaged": false
+}
+```
 
 ---
 
@@ -595,11 +867,11 @@ http://localhost:8080/swagger-ui/index.html
 
 <div align="center">
 
-**Sandeep**  
+**Sai Venkata Sandeep**  
 Backend Developer | Java & Spring Boot Enthusiast
 
-[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/your-username)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/your-profile)
+[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sandeep10704/miniFinanceBackendProject)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/sai-venkata-sandeep-250855288)
 
 </div>
 
